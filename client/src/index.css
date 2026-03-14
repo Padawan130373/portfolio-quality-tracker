@@ -1,0 +1,165 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Finance dashboard palette — deep navy + emerald accent */
+    --background: 222 47% 7%;
+    --foreground: 213 31% 91%;
+
+    --card: 222 40% 10%;
+    --card-foreground: 213 31% 91%;
+
+    --popover: 222 40% 10%;
+    --popover-foreground: 213 31% 91%;
+
+    --primary: 158 64% 42%;
+    --primary-foreground: 222 47% 7%;
+
+    --secondary: 222 32% 16%;
+    --secondary-foreground: 210 40% 80%;
+
+    --muted: 222 32% 14%;
+    --muted-foreground: 215 20% 55%;
+
+    --accent: 158 50% 35%;
+    --accent-foreground: 213 31% 91%;
+
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 222 32% 18%;
+    --input: 222 32% 16%;
+    --ring: 158 64% 42%;
+
+    --radius: 0.5rem;
+
+    /* Custom palette tokens */
+    --color-gain: 142 71% 45%;
+    --color-loss: 0 84% 60%;
+    --color-neutral: 215 20% 55%;
+    --color-gold: 43 96% 56%;
+    --color-blue-accent: 211 100% 65%;
+    --color-surface-2: 222 36% 13%;
+    --color-border-subtle: 222 25% 22%;
+
+    /* Fonts */
+    --font-body: 'Satoshi', 'DM Sans', sans-serif;
+    --font-display: 'Cabinet Grotesk', 'Satoshi', sans-serif;
+    --font-mono: 'JetBrains Mono', 'Geist Mono', monospace;
+    --font-sans: 'Satoshi', 'DM Sans', sans-serif;
+    --font-serif: 'Georgia', serif;
+
+    /* Chart colors */
+    --chart-1: 158 64% 42%;
+    --chart-2: 211 100% 65%;
+    --chart-3: 43 96% 56%;
+    --chart-4: 271 81% 65%;
+    --chart-5: 0 84% 60%;
+
+    /* Sidebar (reuse card) */
+    --sidebar: 222 40% 10%;
+    --sidebar-foreground: 213 31% 91%;
+    --sidebar-border: 222 32% 18%;
+    --sidebar-ring: 158 64% 42%;
+    --sidebar-primary: 158 64% 42%;
+    --sidebar-primary-foreground: 222 47% 7%;
+    --sidebar-accent: 222 32% 16%;
+    --sidebar-accent-foreground: 213 31% 91%;
+  }
+
+  .light {
+    --background: 210 20% 97%;
+    --foreground: 222 47% 11%;
+    --card: 0 0% 100%;
+    --card-foreground: 222 47% 11%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 47% 11%;
+    --primary: 158 64% 35%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 210 20% 92%;
+    --secondary-foreground: 222 47% 20%;
+    --muted: 210 20% 93%;
+    --muted-foreground: 215 16% 47%;
+    --accent: 158 50% 40%;
+    --accent-foreground: 0 0% 100%;
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 210 20% 87%;
+    --input: 210 20% 92%;
+    --ring: 158 64% 35%;
+    --color-surface-2: 210 20% 95%;
+    --color-border-subtle: 210 20% 88%;
+    --font-sans: 'Satoshi', 'DM Sans', sans-serif;
+    --chart-1: 158 64% 35%;
+    --chart-2: 211 100% 55%;
+    --chart-3: 43 96% 46%;
+    --chart-4: 271 81% 55%;
+    --chart-5: 0 72% 51%;
+    --sidebar: 0 0% 100%;
+    --sidebar-foreground: 222 47% 11%;
+    --sidebar-border: 210 20% 87%;
+    --sidebar-ring: 158 64% 35%;
+    --sidebar-primary: 158 64% 35%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 210 20% 92%;
+    --sidebar-accent-foreground: 222 47% 20%;
+  }
+}
+
+@layer base {
+  * { @apply border-border; }
+  body {
+    @apply bg-background text-foreground;
+    font-family: var(--font-body);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+  h1, h2, h3, h4, h5 {
+    font-family: var(--font-display);
+    font-weight: 700;
+    letter-spacing: -0.02em;
+  }
+  .mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums lining-nums; }
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { @apply bg-muted-foreground/30 rounded-full; }
+::-webkit-scrollbar-thumb:hover { @apply bg-muted-foreground/50; }
+
+/* Gain / Loss colors */
+.gain { color: hsl(var(--color-gain)); }
+.loss { color: hsl(var(--color-loss)); }
+.neutral { color: hsl(var(--color-neutral)); }
+
+/* Quality score pills */
+.quality-badge {
+  @apply inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full;
+}
+.quality-excellent { @apply bg-emerald-500/15 text-emerald-400; }
+.quality-good { @apply bg-blue-500/15 text-blue-400; }
+.quality-medium { @apply bg-yellow-500/15 text-yellow-400; }
+.quality-poor { @apply bg-red-500/15 text-red-400; }
+
+/* KPI cards */
+.kpi-card {
+  @apply rounded-xl border p-4 flex flex-col gap-1;
+  background: hsl(var(--card));
+  border-color: hsl(var(--color-border-subtle));
+}
+
+/* Animate number changes */
+.num-animate { transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1); }
+
+/* Table */
+.data-table thead th {
+  @apply text-xs font-semibold uppercase tracking-wider text-muted-foreground;
+  background: hsl(var(--color-surface-2));
+}
+.data-table tbody tr {
+  @apply border-b border-border/50 hover:bg-muted/30 transition-colors;
+}
+.data-table tbody td { @apply py-3 px-4; }
