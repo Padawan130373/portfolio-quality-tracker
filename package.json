@@ -105,6 +105,10 @@
       "@esbuild-kit/esm-loader": "npm:tsx@^4.20.4"
     }
   },
+  "resolutions": {
+    "@esbuild-kit/esm-loader": "npm:tsx@^4.20.4",
+    "@esbuild-kit/core-utils": "npm:tsx@^4.20.4"
+  },
   "optionalDependencies": {
     "bufferutil": "^4.0.8"
   }
