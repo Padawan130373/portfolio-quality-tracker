@@ -1,109 +1,120 @@
-import { type Express } from "express";
-import { createServer } from "http";
-import { db } from "./storage";
-import { positions, dividendEntries } from "@shared/schema";
-import { eq } from "drizzle-orm";
+import type { Express } from "express";
+import { Server } from "http";
+import { storage } from "./storage";
+import { insertPositionSchema, insertDividendEntrySchema, insertQualityScoreSchema } from "@shared/schema";
+import { z } from "zod";
+import axios from "axios";
 
-// Yahoo Finance quote fetcher
-async function fetchQuote(ticker: string): Promise<{ price: number; changePercent: number; currency: string } | null> {
+const FINANCE_BASE = "https://financialmodelingprep.com/api/v3";
+
+async function fetchQuote(ticker: string) {
   try {
+    // Use Yahoo Finance via allorigins proxy to avoid API key requirements
     const url = `https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?interval=1d&range=1d`;
-    const res = await fetch(url, { headers: { "User-Agent": "Mozilla/5.0" } });
-    if (!res.ok) return null;
-    const data = await res.json();
-    const meta = data?.chart?.result?.[0]?.meta;
-    if (!meta) return null;
+    const res = await axios.get(url, { timeout: 5000 });
+    const result = res.data?.chart?.result?.[0];
+    if (!result) return null;
+    const meta = result.meta;
     return {
-      price: meta.regularMarketPrice ?? meta.previousClose ?? 0,
-      changePercent: ((meta.regularMarketPrice - meta.previousClose) / meta.previousClose) * 100,
-      currency: meta.currency ?? "EUR",
+      ticker,
+      price: meta.regularMarketPrice ?? null,
+      previousClose: meta.chartPreviousClose ?? meta.previousClose ?? null,
+      currency: meta.currency ?? "USD",
+      longName: meta.longName ?? meta.shortName ?? ticker,
+      change: meta.regularMarketPrice && meta.chartPreviousClose
+        ? meta.regularMarketPrice - meta.chartPreviousClose
+        : null,
+      changePercent: meta.regularMarketPrice && meta.chartPreviousClose
+        ? ((meta.regularMarketPrice - meta.chartPreviousClose) / meta.chartPreviousClose) * 100
+        : null,
     };
   } catch {
     return null;
   }
 }
 
-const quoteCache = new Map<string, { data: any; ts: number }>();
-const CACHE_TTL = 60_000; // 1 min
-
-export async function registerRoutes(app: Express) {
-  // GET all positions
+export async function registerRoutes(httpServer: Server, app: Express) {
+  // ---- POSITIONS ----
   app.get("/api/positions", async (_req, res) => {
-    const rows = await db.select().from(positions).all();
-    res.json(rows);
+    const positions = await storage.getPositions();
+    res.json(positions);
   });
 
-  // POST create position
   app.post("/api/positions", async (req, res) => {
-    const row = await db.insert(positions).values(req.body).returning().get();
-    res.status(201).json(row);
+    const parsed = insertPositionSchema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: parsed.error.issues });
+    const pos = await storage.createPosition(parsed.data);
+    res.status(201).json(pos);
   });
 
-  // PUT update position
-  app.put("/api/positions/:id", async (req, res) => {
+  app.patch("/api/positions/:id", async (req, res) => {
     const id = parseInt(req.params.id);
-    const row = await db.update(positions).set(req.body).where(eq(positions.id, id)).returning().get();
-    if (!row) return res.status(404).json({ error: "Not found" });
-    res.json(row);
+    const partial = insertPositionSchema.partial().safeParse(req.body);
+    if (!partial.success) return res.status(400).json({ error: partial.error.issues });
+    const updated = await storage.updatePosition(id, partial.data);
+    if (!updated) return res.status(404).json({ error: "Not found" });
+    res.json(updated);
   });
 
-  // DELETE position
   app.delete("/api/positions/:id", async (req, res) => {
     const id = parseInt(req.params.id);
-    await db.delete(positions).where(eq(positions.id, id));
-    res.status(204).end();
+    const ok = await storage.deletePosition(id);
+    if (!ok) return res.status(404).json({ error: "Not found" });
+    res.status(204).send();
   });
 
-  // GET dividends for a position
+  // ---- DIVIDENDS ----
   app.get("/api/positions/:id/dividends", async (req, res) => {
     const id = parseInt(req.params.id);
-    const rows = await db.select().from(dividendEntries).where(eq(dividendEntries.positionId, id)).all();
-    res.json(rows);
+    const entries = await storage.getDividendEntries(id);
+    res.json(entries);
   });
 
-  // POST add dividend entry
   app.post("/api/positions/:id/dividends", async (req, res) => {
     const positionId = parseInt(req.params.id);
-    const entry = await db.insert(dividendEntries).values({ ...req.body, positionId }).returning().get();
-    // Update total on position
-    const allEntries = await db.select().from(dividendEntries).where(eq(dividendEntries.positionId, positionId)).all();
-    const total = allEntries.reduce((s, e) => s + e.amount, 0);
-    await db.update(positions).set({ totalDividendsReceived: total }).where(eq(positions.id, positionId));
+    const parsed = insertDividendEntrySchema.safeParse({ ...req.body, positionId });
+    if (!parsed.success) return res.status(400).json({ error: parsed.error.issues });
+    const entry = await storage.createDividendEntry(parsed.data);
     res.status(201).json(entry);
   });
 
-  // DELETE dividend entry
   app.delete("/api/dividends/:id", async (req, res) => {
     const id = parseInt(req.params.id);
-    const entry = await db.select().from(dividendEntries).where(eq(dividendEntries.id, id)).get();
-    if (!entry) return res.status(404).json({ error: "Not found" });
-    await db.delete(dividendEntries).where(eq(dividendEntries.id, id));
-    // Update total
-    const allEntries = await db.select().from(dividendEntries).where(eq(dividendEntries.positionId, entry.positionId)).all();
-    const total = allEntries.reduce((s, e) => s + e.amount, 0);
-    await db.update(positions).set({ totalDividendsReceived: total }).where(eq(positions.id, entry.positionId));
-    res.status(204).end();
+    const ok = await storage.deleteDividendEntry(id);
+    if (!ok) return res.status(404).json({ error: "Not found" });
+    res.status(204).send();
   });
 
-  // GET live quotes
+  // ---- QUALITY SCORES ----
+  app.get("/api/positions/:id/quality", async (req, res) => {
+    const id = parseInt(req.params.id);
+    const score = await storage.getQualityScore(id);
+    res.json(score ?? null);
+  });
+
+  app.post("/api/positions/:id/quality", async (req, res) => {
+    const positionId = parseInt(req.params.id);
+    const parsed = insertQualityScoreSchema.safeParse({ ...req.body, positionId });
+    if (!parsed.success) return res.status(400).json({ error: parsed.error.issues });
+    const score = await storage.upsertQualityScore(parsed.data);
+    res.json(score);
+  });
+
+  // ---- MARKET DATA (live quotes) ----
+  app.get("/api/quote/:ticker", async (req, res) => {
+    const { ticker } = req.params;
+    const quote = await fetchQuote(ticker.toUpperCase());
+    if (!quote) return res.status(404).json({ error: "Quote unavailable" });
+    res.json(quote);
+  });
+
+  // Batch quotes for all positions
   app.get("/api/quotes", async (req, res) => {
-    const tickers = ((req.query.tickers as string) || "").split(",").filter(Boolean);
+    const tickers = String(req.query.tickers || "").split(",").filter(Boolean);
     if (!tickers.length) return res.json({});
-    const result: Record<string, any> = {};
-    await Promise.all(tickers.map(async (ticker) => {
-      const cached = quoteCache.get(ticker);
-      if (cached && Date.now() - cached.ts < CACHE_TTL) {
-        result[ticker] = cached.data;
-        return;
-      }
-      const data = await fetchQuote(ticker);
-      if (data) {
-        quoteCache.set(ticker, { data, ts: Date.now() });
-        result[ticker] = data;
-      }
-    }));
-    res.json(result);
+    const results = await Promise.all(tickers.map(t => fetchQuote(t)));
+    const map: Record<string, any> = {};
+    results.forEach((q, i) => { if (q) map[tickers[i]] = q; });
+    res.json(map);
   });
-
-  return createServer(app);
 }
